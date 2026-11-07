@@ -40,7 +40,7 @@ export function createResultCard({ onEvidenceClick, onReevaluate, onAppeal, audi
           'div',
           { class: 'ev__head' },
           el('span', { class: 'ev__role', text: ROLE_LABELS[ev.role] || ev.role || '—' }),
-          el('span', { text: `реплика #${ev.turn_index}` }),
+          el('span', { text: `реплика #${ev.turn_index + 1}` }),
           el('span', { text: SPEAKERS[ev.speaker] || ev.speaker || '' }),
           el('span', { text: ev.timestamp ?? '' }),
         ),
@@ -116,7 +116,7 @@ export function createResultCard({ onEvidenceClick, onReevaluate, onAppeal, audi
             'div',
             { class: 'crit__note' },
             el('b', { text: 'Проверенный участок: ' }),
-            `реплики #${range.from_turn}–#${range.to_turn} `,
+            `реплики #${range.from_turn + 1}–#${range.to_turn + 1} `,
             el('button', {
               type: 'button',
               class: 'linkbtn',

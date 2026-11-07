@@ -40,7 +40,7 @@ export function createTurnNode(turn, index, { anchor = false, extraClass = '', c
       // метка времени ровно как в данных
       el('span', { class: `turn__time${call ? ' turn__time--iso' : ''}`, text: turn.timestamp ?? '' }),
       offset,
-      el('span', { class: 'turn__idx', text: `#${index}` }),
+      el('span', { class: 'turn__idx', text: `#${index + 1}` }),
     ),
     el('div', { class: 'turn__text', text: turn.text ?? '' }),
   );

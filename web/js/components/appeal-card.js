@@ -56,7 +56,7 @@ export function createAppealCard({ onOpenDialog, onResolve }) {
     return el(
       'div',
       { class: 'ac__block' },
-      el('h4', { text: `Фрагмент диалога: реплики #${from}–#${to}` }),
+      el('h4', { text: `Фрагмент диалога: реплики #${from + 1}–#${to + 1}` }),
       el('div', { class: 'ac__hint', text: 'Спорные реплики выделены, по одной реплике контекста до и после.' }),
       mini ? mini.el : null,
       list,
