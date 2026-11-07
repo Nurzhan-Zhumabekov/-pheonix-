@@ -1,7 +1,13 @@
 # секреты и данные
 .env
 storage/
-results/
+results/*
+!results/dev/
+!results/prod/
+results/dev/*
+results/prod/*
+!results/dev/results.json
+!results/prod/results.json
 data/raw/
 
 # python
