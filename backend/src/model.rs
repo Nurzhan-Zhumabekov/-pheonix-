@@ -1,6 +1,15 @@
 use std::collections::BTreeMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Интерфейс шлёт `null` у необязательных списков (например, `scale` у бинарного критерия): считаем это пустым значением.
+fn null_as_default<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+}
 
 // ---- Чек-лист ----
 
@@ -36,7 +45,7 @@ pub struct Criterion {
     pub kind: CriterionType,
     #[serde(default)]
     pub weight: f64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_as_default")]
     pub scale: Vec<f64>,
     #[serde(default)]
     pub na_allowed: bool,
@@ -196,4 +205,18 @@ pub struct Label {
     pub note: String,
     #[serde(default)]
     pub updated_at: String,
+}
+
+#[cfg(test)]
+mod null_scale_tests {
+    use super::*;
+
+    #[test]
+    fn null_scale_is_read_as_empty() {
+        let c: Criterion = serde_json::from_str(
+            r#"{"id":"a","name":"A","type":"binary","weight":10,"scale":null,"na_allowed":false,"section":"s"}"#,
+        )
+        .unwrap();
+        assert!(c.scale.is_empty());
+    }
 }
