@@ -1,0 +1,9 @@
+# секреты и данные
+.env
+storage/
+data/raw/
+
+# python
+__pycache__/
+*.pyc
+.venv/
