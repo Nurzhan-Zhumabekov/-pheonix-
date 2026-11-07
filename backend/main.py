@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 # Читаем переменные из .env (ищется в папке backend/ и выше, то есть в корне репо).
 load_dotenv()
@@ -14,6 +17,10 @@ register_error_handlers(app)
 app.include_router(conversations_router)
 app.include_router(checklist_router)
 app.include_router(evaluation_router)
+
+# Интерфейс из папки web/. Монтируем последним, чтобы маршруты /api имели приоритет.
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 @app.get("/api/health")
