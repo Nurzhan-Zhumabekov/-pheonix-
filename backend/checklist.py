@@ -100,10 +100,10 @@ def _read(path: Path) -> dict:
         return json.load(f)
 
 
-def _write_atomic(path: Path, data: dict) -> None:
+def write_json_atomic(path: Path, data: dict) -> None:
     """Пишем во временный файл рядом и переименовываем: файл либо старый, либо новый целиком."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix="checklist.", suffix=".tmp")
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.stem + ".", suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
@@ -121,7 +121,7 @@ def load_checklist() -> dict:
     with _lock:
         path = checklist_path()
         if not path.exists():
-            _write_atomic(path, _read(DEFAULT_PATH))
+            write_json_atomic(path, _read(DEFAULT_PATH))
         return _read(path)
 
 
@@ -134,7 +134,7 @@ def save_checklist(new: Any) -> dict:
         stored = _read(path) if path.exists() else _read(DEFAULT_PATH)
         # version считает сервер: сохранённая + 1 (присланную игнорируем)
         saved = {**new, "version": stored["version"] + 1}
-        _write_atomic(path, saved)
+        write_json_atomic(path, saved)
         return saved
 
 

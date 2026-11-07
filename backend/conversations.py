@@ -3,6 +3,7 @@ from typing import Literal
 from fastapi import APIRouter
 
 from errors import ApiError
+from evaluation import has_evaluation
 from organizers import find_conversation, get_records
 
 router = APIRouter(prefix="/api")
@@ -16,7 +17,7 @@ def list_conversations(group: Literal["dev", "control"] = "dev"):
             "channel": r.get("channel"),
             "language": r.get("language"),
             "turns_count": len(r.get("transcript") or []),
-            "has_evaluation": False,  # пока оценок нет
+            "has_evaluation": has_evaluation(r.get("conversation_id")),
         }
         for r in get_records(group)
     ]
