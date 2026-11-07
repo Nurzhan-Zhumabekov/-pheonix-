@@ -379,13 +379,15 @@ async fn get_checklist_version(State(st): State<Shared>, Path(version): Path<u32
 
 async fn put_checklist(State(st): State<Shared>, AppJson(mut cl): AppJson<Checklist>) -> ApiResult<Checklist> {
     validate_checklist(&cl).map_err(|m| err(StatusCode::BAD_REQUEST, "invalid_checklist", m))?;
-    cl.version = current_checklist(&st).version + 1;
-    let storage = |m: String| err(StatusCode::INTERNAL_SERVER_ERROR, "storage_error", m);
-    st.store
-        .write(&format!("checklists/v{}.json", cl.version), &cl)
-        .map_err(storage)?;
-    st.store.write("checklist.json", &cl).map_err(storage)?;
-    Ok(Json(cl))
+    st.store.with_lock(|| {
+        cl.version = current_checklist(&st).version + 1;
+        let storage = |m: String| err(StatusCode::INTERNAL_SERVER_ERROR, "storage_error", m);
+        st.store
+            .write(&format!("checklists/v{}.json", cl.version), &cl)
+            .map_err(storage)?;
+        st.store.write("checklist.json", &cl).map_err(storage)?;
+        Ok(Json(cl))
+    })
 }
 
 #[derive(Deserialize)]
@@ -620,6 +622,54 @@ mod tests {
         let mut cl: Checklist = serde_json::from_str(include_str!("../../config/checklist.default.json")).unwrap();
         cl.criteria[0].section = Some("nope".into());
         assert!(validate_checklist(&cl).is_err());
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 12)]
+    async fn parallel_checklist_saves_keep_distinct_versions() {
+        let (st, dir) = test_state("parallel_checklists");
+        let st = Arc::new(st);
+        let count = 12;
+        let initial_version = st.default_checklist.version;
+        let barrier = Arc::new(tokio::sync::Barrier::new(count));
+        let requests = (0..count).map(|index| {
+            let st = Arc::clone(&st);
+            let barrier = Arc::clone(&barrier);
+            tokio::spawn(async move {
+                let mut checklist = st.default_checklist.clone();
+                let name = format!("Parallel criterion {index}");
+                checklist.criteria[0].name = name.clone();
+                barrier.wait().await;
+                put_checklist(State(st), AppJson(checklist))
+                    .await
+                    .map(|Json(saved)| (saved.version, name, saved.criteria[0].name.clone()))
+                    .map_err(|error| error.code)
+            })
+        });
+        let responses = futures::future::join_all(requests).await;
+        let versions = initial_version + 1..=initial_version + count as u32;
+        let archives: Vec<_> = versions
+            .clone()
+            .map(|version| archived_checklist(&st, version).map(|cl| cl.criteria[0].name.clone()))
+            .collect();
+        let current = current_checklist(&st);
+        let _ = std::fs::remove_dir_all(dir);
+
+        let mut saved: Vec<_> = responses
+            .into_iter()
+            .map(|response| response.unwrap())
+            .collect::<Result<_, _>>()
+            .expect("all parallel saves should succeed");
+        saved.sort_by_key(|(version, _, _)| *version);
+        assert_eq!(
+            saved.iter().map(|(version, _, _)| *version).collect::<Vec<_>>(),
+            versions.clone().collect::<Vec<_>>()
+        );
+        for ((_, submitted, returned), archived) in saved.iter().zip(archives) {
+            assert_eq!(submitted, returned);
+            assert_eq!(archived.as_ref(), Some(submitted));
+        }
+        assert_eq!(current.version, *versions.end());
+        assert_eq!(current.criteria[0].name, saved.last().unwrap().1);
     }
 
     #[test]
