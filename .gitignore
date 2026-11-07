@@ -1,6 +1,7 @@
 # секреты и данные
 .env
 storage/
+results/
 data/raw/
 
 # python
@@ -8,3 +9,6 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+
+# rust
+target/

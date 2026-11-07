@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Ручная разметка диалогов DEV для проверки качества оценок CQA.">
+  <title>CQA · Разметка DEV</title>
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./label.css">
+  <script type="module" src="./label.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#main">К содержимому</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 13h4l3-6 4 11 3-6h4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span><strong>CQA</strong><small>Контроль качества</small></span>
+      </div>
+      <nav class="top-nav" aria-label="Разделы приложения">
+        <a class="nav-item" href="./index.html">К диалогам</a>
+        <span class="nav-item active" aria-current="page">Разметка DEV</span>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="layout" tabindex="-1">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">Ручная оценка</p>
+        <h1>Разметка DEV</h1>
+        <p class="intro">Оценивайте работу оператора по транскрипту. Ответы модели скрыты на этой странице.</p>
+      </div>
+      <div class="overview" aria-label="Прогресс разметки DEV">
+        <div><span id="label-loaded">—</span><small>Диалогов с меткой</small></div>
+      </div>
+    </header>
+    <div class="label-workbench">
+      <aside class="panel label-queue" aria-labelledby="label-queue-title">
+        <div class="panel-head">
+          <h2 id="label-queue-title">Диалоги DEV</h2>
+          <button id="label-reload" class="icon-button" type="button" title="Обновить очередь DEV" aria-label="Обновить очередь DEV">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M20 7v5h-5m4.7 0a8 8 0 1 0-2.1 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="queue-controls">
+          <label class="search">
+            <span class="sr-only">Поиск диалога по ID</span>
+            <input id="label-search" type="search" placeholder="Поиск по ID" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Статус разметки</span>
+            <select id="label-filter">
+              <option value="all">Все статусы</option>
+              <option value="unlabeled">Без разметки</option>
+              <option value="partial">Черновики</option>
+              <option value="complete">Размечены полностью</option>
+            </select>
+          </label>
+        </div>
+        <p id="label-queue-status" class="queue-state" role="status">Загружаем диалоги DEV…</p>
+        <ul id="label-queue" class="queue-list"></ul>
+      </aside>
+      <section class="panel label-transcript-panel" aria-labelledby="label-transcript-title">
+        <div class="panel-head transcript-head">
+          <div>
+            <h2 id="label-transcript-title" tabindex="-1">Транскрипт</h2>
+            <p id="label-transcript-meta" class="muted"></p>
+          </div>
+        </div>
+        <div id="label-transcript" class="transcript-body" role="region" aria-labelledby="label-transcript-title" tabindex="0">
+          <div class="empty">
+            <span class="empty-icon" aria-hidden="true">☰</span>
+            <h3>Выберите диалог</h3>
+            <p>Здесь появятся реплики с исходными таймкодами.</p>
+          </div>
+        </div>
+      </section>
+      <section class="panel label-panel" aria-labelledby="label-form-title">
+        <header class="panel-head label-form-head">
+          <div>
+            <h2 id="label-form-title">Критерии разметки</h2>
+            <p id="label-progress" class="muted">Выберите диалог, чтобы начать</p>
+          </div>
+          <span id="label-version" class="chip large" title="Версия чек-листа">—</span>
+        </header>
+        <form id="label-form" aria-describedby="label-instructions">
+          <p id="label-instructions" class="muted label-instructions">В черновике можно оставить критерии без ответа. Выбирайте N/A, когда критерий неприменим по чек-листу.</p>
+          <fieldset id="label-fields" class="label-fields" disabled>
+            <legend class="sr-only">Ответы и данные разметки</legend>
+            <div id="label-criteria" class="label-criteria"></div>
+            <div class="label-details">
+              <label class="field">
+                <span>Имя разметчика</span>
+                <input id="labeler" type="text" autocomplete="name">
+              </label>
+              <label class="field">
+                <span>Заметка <small class="muted">(необязательно)</small></span>
+                <textarea id="label-note" rows="3" placeholder="Что повлияло на вашу оценку?"></textarea>
+              </label>
+            </div>
+            <div class="label-savebar">
+              <button id="label-save" class="button primary" type="submit">Сохранить разметку</button>
+            </div>
+          </fieldset>
+          <p id="label-status" class="notice" role="status" hidden></p>
+        </form>
+      </section>
+    </div>
+  </main>
+  <footer class="footer"><span>CQA · Conversation Quality Analytics</span><span>Data Challenge ’26</span></footer>
+  <div id="live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

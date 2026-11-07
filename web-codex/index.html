@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="CQA — контроль качества клиентских диалогов.">
+  <title>CQA · Контроль качества диалогов</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <a class="skip" href="#main">К содержимому</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 13h4l3-6 4 11 3-6h4" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span><strong>CQA</strong><small>Контроль качества</small></span></div>
+      <nav aria-label="Разделы приложения" class="top-nav">
+        <button type="button" class="nav-item active" data-view="dialogs" aria-current="page">Диалоги</button>
+        <button type="button" class="nav-item" data-view="checklist">Чек-лист</button>
+        <button type="button" class="nav-item" data-view="appeals">Апелляции</button>
+        <a class="nav-item" href="./label.html">Разметка DEV</a>
+      </nav>
+      <span id="health" class="health" role="status"><span class="health-dot"></span><span>Подключение</span></span>
+    </div>
+  </header>
+  <main id="main" class="layout">
+    <section id="dialogs-view" aria-labelledby="dialogs-title">
+      <div class="page-head">
+        <div><p class="eyebrow">Контроль качества</p><h1 id="dialogs-title" tabindex="-1">Рабочая очередь</h1><p class="intro">Выберите диалог, запустите оценку и проверьте её по репликам.</p></div>
+        <div class="overview" aria-label="Данные рабочей очереди">
+          <div><span id="overview-count">—</span><small>Диалогов в наборе</small></div>
+          <div><span id="overview-version">—</span><small>Версия чек-листа</small></div>
+        </div>
+      </div>
+      <div class="workbench">
+        <aside class="panel queue" aria-labelledby="queue-title">
+          <div class="panel-head queue-head"><div><p class="eyebrow">Наборы</p><h2 id="queue-title">Диалоги</h2></div><button class="icon-button" id="refresh" type="button" title="Обновить из источника" aria-label="Обновить из источника"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true"><path d="M20 7v5h-5m4.7 0a8 8 0 1 0-2.1 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+          <div class="queue-controls">
+            <div class="segmented" aria-label="Источник диалогов"><button type="button" data-group="dev" aria-pressed="true">DEV</button><button type="button" data-group="control" aria-pressed="false">Контроль</button></div>
+            <label class="search"><span class="sr-only">Поиск по ID</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5" stroke="currentColor" stroke-width="1.8"/><path d="m15 15 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input id="search" type="search" placeholder="Найти по ID"></label>
+            <div class="filters"><label><span class="sr-only">Язык диалога</span><select id="language"><option value="">Все языки</option><option>RU</option><option>KZ</option><option>EN</option></select></label><label><span class="sr-only">Канал диалога</span><select id="channel"><option value="">Все каналы</option><option value="chat">Чат</option><option value="call">Звонок</option></select></label></div>
+          </div>
+          <p id="queue-state" class="queue-state" role="status">Загрузка набора…</p>
+          <ul id="queue-list" class="queue-list" aria-label="Найденные диалоги"></ul>
+        </aside>
+        <section class="panel transcript" aria-labelledby="transcript-title">
+          <div class="panel-head transcript-head"><div><p class="eyebrow">Транскрипт</p><h2 id="transcript-title" tabindex="-1">Диалог</h2><p class="muted" id="transcript-meta" hidden></p></div><button id="evaluate" class="button primary" type="button" disabled>Оценить</button></div>
+          <div id="transcript-status" class="notice" role="status" hidden></div>
+          <div id="player" class="player" hidden></div>
+          <div id="transcript-body" class="transcript-body" aria-busy="false"><div class="empty"><span class="empty-icon" aria-hidden="true">☰</span><h3>Откройте диалог</h3><p>Здесь появится транскрипт с исходными таймкодами.</p></div></div>
+        </section>
+        <section class="panel results" aria-labelledby="results-title">
+          <div class="panel-head"><div><p class="eyebrow">Чек-лист</p><h2 id="results-title">Оценка</h2></div><span id="result-version" class="chip" hidden></span></div>
+          <div id="evaluation-body" class="evaluation-body" aria-busy="false"><div class="empty"><span class="empty-icon" aria-hidden="true">✓</span><h3>Оценки пока нет</h3><p>Запустите оценку, чтобы увидеть баллы, N/A и основания.</p></div></div>
+        </section>
+      </div>
+    </section>
+    <section id="checklist-view" aria-labelledby="checklist-title" hidden>
+      <div class="page-head"><div><p class="eyebrow">Настройки оценки</p><h1 id="checklist-title" tabindex="-1">Чек-лист</h1><p class="intro">Добавляйте, редактируйте и заменяйте критерии. Сохранённая версия применяется при следующей оценке.</p></div><span id="checklist-version" class="chip large">Загрузка…</span></div>
+      <form id="checklist-form" novalidate>
+        <div class="editor-bar panel"><div><strong id="editor-count">Критерии</strong><p id="editor-summary" class="muted"></p></div><div class="actions"><button id="add-criterion" class="button secondary" type="button" disabled>Добавить критерий</button><button id="save-checklist" class="button primary" type="submit" disabled>Сохранить версию</button></div></div>
+        <p id="editor-status" class="notice" role="status" hidden></p><div id="criteria-editor" class="criteria-editor"></div>
+      </form>
+    </section>
+    <section id="appeals-view" aria-labelledby="appeals-title" hidden>
+      <div class="page-head"><div><p class="eyebrow">Решения проверяющего</p><h1 id="appeals-title" tabindex="-1">Апелляции</h1><p class="intro">Сверьте спорный критерий с транскриптом и сохраните обоснование решения.</p></div><button id="refresh-appeals" class="button secondary" type="button">Обновить список</button></div>
+      <div class="panel appeal-board"><div class="panel-head"><h2>Очередь апелляций</h2><label class="appeal-filter"><span class="sr-only">Статус апелляции</span><select id="appeal-filter"><option value="all">Все статусы</option><option value="open">На рассмотрении</option><option value="resolved">Рассмотрены</option></select></label></div><p id="appeal-status" class="notice" role="status" hidden></p><div id="appeal-list" class="appeal-list"></div></div>
+    </section>
+  </main>
+  <footer class="footer"><span>CQA · Conversation Quality Analytics</span><span>Data Challenge ’26</span></footer>
+  <div id="live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <dialog id="dialog" class="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>
+</body>
+</html>

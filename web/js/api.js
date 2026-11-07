@@ -44,7 +44,8 @@ async function request(path, options = {}) {
 const enc = encodeURIComponent;
 
 export const api = {
-  listConversations: (group) => request(`/api/conversations?group=${enc(group)}`),
+  listConversations: (group) =>
+    request(`/api/conversations?group=${enc(group)}`).then((b) => (Array.isArray(b) ? b : b.items)),
   getConversation: (id) => request(`/api/conversations/${enc(id)}`),
   getChecklist: () => request('/api/checklist'),
   saveChecklist: (checklist) =>
