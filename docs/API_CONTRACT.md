@@ -68,6 +68,7 @@
 {
   "mock": false,
   "conversation_id": "…",
+  "evaluation_id": "ev_18e5d6d032df5430",
   "channel": "agent chat",
   "language": "RU",
   "checklist_version": 3,
@@ -105,7 +106,7 @@
 
 ## Эндпоинты
 
-Ошибки: `{"error": {"code": "…", "message": "…"}}` с HTTP-статусом, в том числе для некорректного JSON в теле (`bad_json`, 400). Коды: `bad_group`, `no_source`, `no_conversation`, `invalid_checklist`, `no_evaluation`, `no_criterion`, `score_error`, `empty_comment`, `empty_reason`, `bad_action`, `no_answer`, `no_appeal`, `already_resolved` (409), `upstream_error` (502), `judge_error` (502), `storage_error` (500), `checklist_version_missing` (409: архивной версии нет, пересчёт по текущему чек-листу не делается), `no_checklist_version` (404), `open_appeal` (409), `no_label` (404), `bad_label` (400).
+Ошибки: `{"error": {"code": "…", "message": "…"}}` с HTTP-статусом, в том числе для некорректного JSON в теле (`bad_json`, 400). Коды: `bad_group`, `no_source`, `no_conversation`, `invalid_checklist`, `no_evaluation`, `no_criterion`, `score_error`, `empty_comment`, `empty_reason`, `bad_action`, `no_answer`, `no_appeal`, `already_resolved` (409), `upstream_error` (502), `judge_error` (502), `storage_error` (500), `checklist_version_missing` (409: архивной версии нет, пересчёт по текущему чек-листу не делается), `no_checklist_version` (404), `open_appeal` (409), `no_label` (404), `bad_label` (400), `stale_evaluation` (409: оценка по диалогу изменилась после подачи апелляции).
 
 | Метод и путь | Назначение |
 |---|---|
@@ -119,9 +120,9 @@
 | `GET /api/labels/{conversation_id}` | разметка диалога (404 `no_label`) |
 | `PUT /api/labels/{conversation_id}` | полная замена разметки. Тело: `{"checklist_version"?, "answers", "gross", "labeler", "note"}`. Версия по умолчанию текущая. 400 `bad_label` или `no_checklist_version`, 404 `no_conversation`. Ответ: сохранённая метка с `updated_at` |
 | `GET /api/report` | согласие модели с разметкой (структура в разделе ниже) |
-| `POST /api/evaluate` | тело `{"conversation_id": "…"}`, ответ: результат оценки. 409 `open_appeal`, если по диалогу есть нерассмотренная апелляция: сначала нужно принять решение |
+| `POST /api/evaluate` | тело `{"conversation_id": "…"}`, ответ: результат оценки. 409 `open_appeal`, если по диалогу есть нерассмотренная апелляция: сначала нужно принять решение. Проверка повторяется под замком уже после ответа модели: если апелляцию подали, пока модель отвечала, новый результат не сохраняется (тот же 409), прежняя оценка остаётся. Каждый сохранённый результат получает новый `evaluation_id` |
 | `GET /api/evaluations/{conversation_id}` | последняя сохранённая оценка |
-| `POST /api/appeals` | тело `{"conversation_id", "criterion_id", "comment"}` |
+| `POST /api/appeals` | тело `{"conversation_id", "criterion_id", "comment", "evaluation_id"?}`. Необязательный `evaluation_id` это оценка, которую видел пользователь: если диалог успели переоценить, ответ 409 `stale_evaluation` |
 | `GET /api/appeals?conversation_id=…` | список апелляций |
 | `POST /api/appeals/{id}/resolve` | тело `{"action": "confirm"\|"change", "new_answer": …, "reason": "…"}` |
 
@@ -135,6 +136,7 @@
 {
   "id": "ap_1",
   "conversation_id": "…",
+  "evaluation_id": "ev_18e5d6d032df5430",
   "criterion_id": "consult",
   "comment": "Комиссия названа в реплике 14.",
   "fragment": { "from_turn": 12, "to_turn": 15 },
@@ -151,6 +153,7 @@
 - `status`: `open` или `resolved`.
 - `fragment`: участок диалога вокруг спорной оценки. Проверяющий видит спорную оценку, комментарий и этот фрагмент (требование guide). По умолчанию берётся из `evidence` критерия.
 - Подача апелляции и решение проверяющего это два отдельных действия в интерфейсе, авторизации нет.
+- Апелляция привязана к оценке, по которой подана (`evaluation_id`). Решение применяется только к ней: если оценка заменена (например, подача и переоценка совпали по времени), `POST /api/appeals/{id}/resolve` отвечает 409 `stale_evaluation`. У апелляций, созданных до появления поля, `evaluation_id` пуст и эта проверка пропускается.
 - При `confirm` `final` равен `original`, итог не меняется.
 - При `change` итог пересчитывается функцией `scoring` по чек-листу той версии, по которой выставлена оценка (`checklist_version`), а не по текущему. Результат записывается в оценку, исходная оценка остаётся в `original`.
 - `new_answer`: `"yes"`, `"no"`, `"na"` или число из шкалы. Недопустимый ответ (например, N/A там, где он запрещён) даёт 400 `score_error`.

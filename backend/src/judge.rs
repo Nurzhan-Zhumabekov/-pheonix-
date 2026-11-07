@@ -437,6 +437,7 @@ async fn run<L: Llm>(
     Ok(Evaluation {
         mock: false,
         conversation_id: conv.conversation_id.clone(),
+        evaluation_id: String::new(),
         channel: conv.channel.clone(),
         language: conv.language.clone(),
         checklist_version: checklist.version,
@@ -512,6 +513,7 @@ fn mock(conv: &Conversation, checklist: &Checklist) -> Evaluation {
     Evaluation {
         mock: true,
         conversation_id: conv.conversation_id.clone(),
+        evaluation_id: String::new(),
         channel: conv.channel.clone(),
         language: conv.language.clone(),
         checklist_version: checklist.version,

@@ -135,6 +135,88 @@ fn checklist_for(st: &AppState, version: u32) -> Result<Checklist, ApiError> {
 }
 
 /// Есть ли по диалогу нерассмотренная апелляция.
+fn open_appeal_error() -> ApiError {
+    err(StatusCode::CONFLICT, "open_appeal", "по диалогу есть нерассмотренная апелляция: сначала примите решение")
+}
+
+fn stale_error() -> ApiError {
+    err(StatusCode::CONFLICT, "stale_evaluation", "оценка по диалогу изменилась после того, как была подана апелляция")
+}
+
+/// Идентификатор сохранённой оценки: время в наносекундах.
+fn new_evaluation_id() -> String {
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    format!("ev_{nanos:x}")
+}
+
+/// Сохраняет оценку, только если по диалогу нет нерассмотренной апелляции. Проверка и запись идут
+/// под тем же замком, что и подача апелляции: иначе апелляция, поданная пока модель отвечала,
+/// ссылалась бы на оценку, которую мы тут же затираем.
+fn save_evaluation(st: &AppState, ev: &Evaluation) -> Result<(), ApiError> {
+    st.store.with_lock(|| {
+        if has_open_appeal(st, &ev.conversation_id) {
+            return Err(open_appeal_error());
+        }
+        st.store
+            .write(&eval_path(&ev.conversation_id), ev)
+            .map_err(|m| err(StatusCode::INTERNAL_SERVER_ERROR, "storage_error", m))
+    })
+}
+
+/// Решение по апелляции применимо только к той оценке, по которой она подана.
+/// У апелляций без `evaluation_id` (созданных раньше) проверка пропускается.
+fn check_not_stale(appeal: &Appeal, ev: &Evaluation) -> Result<(), ApiError> {
+    if !appeal.evaluation_id.is_empty() && appeal.evaluation_id != ev.evaluation_id {
+        return Err(stale_error());
+    }
+    Ok(())
+}
+
+/// Создаёт апелляцию. Оценка читается под замком и привязывается по `evaluation_id`. Если клиент
+/// прислал `evaluation_id` другой оценки (диалог успели переоценить), результат 409.
+fn new_appeal(st: &AppState, req: &AppealReq) -> Result<Appeal, ApiError> {
+    if req.comment.trim().is_empty() {
+        return Err(err(StatusCode::BAD_REQUEST, "empty_comment", "нужен комментарий"));
+    }
+    st.store.with_lock(|| {
+        let ev: Evaluation = st
+            .store
+            .read(&eval_path(&req.conversation_id))
+            .ok_or_else(|| err(StatusCode::NOT_FOUND, "no_evaluation", "сначала оцените диалог"))?;
+        if let Some(seen) = &req.evaluation_id {
+            if *seen != ev.evaluation_id {
+                return Err(stale_error());
+            }
+        }
+        let r = ev
+            .criteria
+            .iter()
+            .find(|c| c.criterion_id == req.criterion_id)
+            .ok_or_else(|| err(StatusCode::NOT_FOUND, "no_criterion", "критерий не найден в оценке"))?;
+        let mut all: Vec<Appeal> = st.store.read("appeals.json").unwrap_or_default();
+        let appeal = Appeal {
+            id: format!("ap_{}", all.len() + 1),
+            conversation_id: req.conversation_id.clone(),
+            evaluation_id: ev.evaluation_id.clone(),
+            criterion_id: req.criterion_id.clone(),
+            comment: req.comment.trim().to_string(),
+            fragment: fragment_of(r),
+            status: "open".into(),
+            created_at: now_iso(),
+            original: AnswerPoints { answer: r.answer.clone(), points: r.points },
+            decision: None,
+            fin: None,
+            total_before: None,
+            total_after: None,
+        };
+        all.push(appeal.clone());
+        st.store
+            .write("appeals.json", &all)
+            .map_err(|m| err(StatusCode::INTERNAL_SERVER_ERROR, "storage_error", m))?;
+        Ok(appeal)
+    })
+}
+
 fn has_open_appeal(st: &AppState, conversation_id: &str) -> bool {
     st.store
         .read::<Vec<Appeal>>("appeals.json")
@@ -314,11 +396,7 @@ struct EvaluateReq {
 async fn evaluate(State(st): State<Shared>, AppJson(req): AppJson<EvaluateReq>) -> ApiResult<Evaluation> {
     let conv = find_conversation(&st, &req.conversation_id)?;
     if has_open_appeal(&st, &conv.conversation_id) {
-        return Err(err(
-            StatusCode::CONFLICT,
-            "open_appeal",
-            "по диалогу есть нерассмотренная апелляция: сначала примите решение",
-        ));
+        return Err(open_appeal_error());
     }
     let checklist = current_checklist(&st);
     let mut ev = judge::evaluate(st.llm.as_ref(), &st.judge_opts, &conv, &checklist)
@@ -328,9 +406,8 @@ async fn evaluate(State(st): State<Shared>, AppJson(req): AppJson<EvaluateReq>) 
         .map_err(|e| err(StatusCode::UNPROCESSABLE_ENTITY, "score_error", e.to_string()))?;
     ev.total = total;
     ev.sections = sections;
-    st.store
-        .write(&eval_path(&conv.conversation_id), &ev)
-        .map_err(|m| err(StatusCode::INTERNAL_SERVER_ERROR, "storage_error", m))?;
+    ev.evaluation_id = new_evaluation_id();
+    save_evaluation(&st, &ev)?;
     Ok(Json(ev))
 }
 
@@ -426,48 +503,13 @@ struct AppealReq {
     conversation_id: String,
     criterion_id: String,
     comment: String,
+    /// Необязательно: `evaluation_id` оценки, которую видел пользователь. При несовпадении 409.
+    #[serde(default)]
+    evaluation_id: Option<String>,
 }
 
 async fn create_appeal(State(st): State<Shared>, AppJson(req): AppJson<AppealReq>) -> ApiResult<Appeal> {
-    if req.comment.trim().is_empty() {
-        return Err(err(StatusCode::BAD_REQUEST, "empty_comment", "нужен комментарий"));
-    }
-    let ev: Evaluation = st
-        .store
-        .read(&eval_path(&req.conversation_id))
-        .ok_or_else(|| err(StatusCode::NOT_FOUND, "no_evaluation", "сначала оцените диалог"))?;
-    let r = ev
-        .criteria
-        .iter()
-        .find(|c| c.criterion_id == req.criterion_id)
-        .ok_or_else(|| err(StatusCode::NOT_FOUND, "no_criterion", "критерий не найден в оценке"))?;
-    let fragment = fragment_of(r);
-    let original = AnswerPoints { answer: r.answer.clone(), points: r.points };
-
-    let appeal = st
-        .store
-        .with_lock(|| -> Result<Appeal, String> {
-            let mut all: Vec<Appeal> = st.store.read("appeals.json").unwrap_or_default();
-            let appeal = Appeal {
-                id: format!("ap_{}", all.len() + 1),
-                conversation_id: req.conversation_id.clone(),
-                criterion_id: req.criterion_id.clone(),
-                comment: req.comment.trim().to_string(),
-                fragment,
-                status: "open".into(),
-                created_at: now_iso(),
-                original,
-                decision: None,
-                fin: None,
-                total_before: None,
-                total_after: None,
-            };
-            all.push(appeal.clone());
-            st.store.write("appeals.json", &all)?;
-            Ok(appeal)
-        })
-        .map_err(|m| err(StatusCode::INTERNAL_SERVER_ERROR, "storage_error", m))?;
-    Ok(Json(appeal))
+    new_appeal(&st, &req).map(Json)
 }
 
 #[derive(Deserialize)]
@@ -504,6 +546,7 @@ async fn resolve_appeal(
                 .store
                 .read(&path)
                 .ok_or_else(|| err(StatusCode::NOT_FOUND, "no_evaluation", "оценка не найдена"))?;
+            check_not_stale(&all[idx], &ev)?;
             let checklist = checklist_for(&st, ev.checklist_version)?;
             let crit_id = all[idx].criterion_id.clone();
             let total_before = ev.total;
@@ -626,6 +669,7 @@ mod tests {
         let appeal = |id: &str, conv: &str, status: &str| Appeal {
             id: id.into(),
             conversation_id: conv.into(),
+            evaluation_id: String::new(),
             criterion_id: "contact".into(),
             comment: "c".into(),
             fragment: None,
@@ -687,6 +731,126 @@ mod tests {
         assert_eq!((item["evaluated"].as_bool(), item["has_evaluation"].as_bool()), (Some(true), Some(true)));
         assert_eq!(conversation_summary(&c, false)["has_evaluation"], false);
         assert!(item.get("audio_url").is_none(), "ссылка на аудио в список не попадает");
+    }
+
+    fn test_state(tag: &str) -> (AppState, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("cqa_api_{tag}_{}", std::process::id()));
+        let st = AppState {
+            store: Store::new(&dir),
+            dev_url: None,
+            control_url: None,
+            default_checklist: serde_json::from_str(include_str!("../../config/checklist.default.json")).unwrap(),
+            llm: None,
+            judge_opts: judge::JudgeOpts::default(),
+        };
+        (st, dir)
+    }
+
+    fn evaluation(conv: &str, ev_id: &str) -> Evaluation {
+        Evaluation {
+            mock: false,
+            conversation_id: conv.into(),
+            evaluation_id: ev_id.into(),
+            channel: "agent chat".into(),
+            language: "RU".into(),
+            checklist_version: 1,
+            criteria: vec![CriterionResult {
+                criterion_id: "contact".into(),
+                answer: Answer::Text("yes".into()),
+                share: Some(1.0),
+                weight: 10.0,
+                points: Some(10.0),
+                explanation: String::new(),
+                evidence: vec![],
+                checked_range: None,
+                na_reason: None,
+            }],
+            sections: vec![],
+            total: Some(100.0),
+            gross_error: GrossError::default(),
+            model: ModelInfo::default(),
+        }
+    }
+
+    fn appeal_of(conv: &str, ev_id: &str, status: &str) -> Appeal {
+        Appeal {
+            id: "ap_1".into(),
+            conversation_id: conv.into(),
+            evaluation_id: ev_id.into(),
+            criterion_id: "contact".into(),
+            comment: "c".into(),
+            fragment: None,
+            status: status.into(),
+            created_at: "t".into(),
+            original: AnswerPoints { answer: Answer::Text("yes".into()), points: Some(10.0) },
+            decision: None,
+            fin: None,
+            total_before: None,
+            total_after: None,
+        }
+    }
+
+    #[test]
+    fn saving_a_new_evaluation_is_refused_while_an_appeal_is_open() {
+        let (st, dir) = test_state("save");
+        save_evaluation(&st, &evaluation("c1", "ev_1")).unwrap_or_else(|e| panic!("{}", e.code));
+        assert!(st.store.exists(&eval_path("c1")));
+
+        // пока модель отвечала, подана апелляция: новая оценка не должна затереть прежнюю
+        st.store.write("appeals.json", &vec![appeal_of("c1", "ev_1", "open")]).unwrap();
+        let refused = save_evaluation(&st, &evaluation("c1", "ev_2")).err().expect("нужен отказ");
+        assert_eq!(refused.code, "open_appeal");
+        assert_eq!(st.store.read::<Evaluation>(&eval_path("c1")).unwrap().evaluation_id, "ev_1");
+
+        // другой диалог не блокируется, рассмотренная апелляция тоже
+        assert!(save_evaluation(&st, &evaluation("c2", "ev_3")).is_ok());
+        st.store.write("appeals.json", &vec![appeal_of("c1", "ev_1", "resolved")]).unwrap();
+        assert!(save_evaluation(&st, &evaluation("c1", "ev_4")).is_ok());
+        assert_eq!(st.store.read::<Evaluation>(&eval_path("c1")).unwrap().evaluation_id, "ev_4");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn appeal_is_bound_to_the_evaluation_it_was_filed_against() {
+        let (st, dir) = test_state("bind");
+        st.store.write(&eval_path("c1"), &evaluation("c1", "ev_1")).unwrap();
+        let req = |seen: Option<&str>, crit: &str, comment: &str| AppealReq {
+            conversation_id: "c1".into(),
+            criterion_id: crit.into(),
+            comment: comment.into(),
+            evaluation_id: seen.map(String::from),
+        };
+        let first = new_appeal(&st, &req(None, "contact", "спорно")).ok().expect("создана");
+        assert_eq!((first.evaluation_id.as_str(), first.status.as_str()), ("ev_1", "open"));
+        let second = new_appeal(&st, &req(Some("ev_1"), "contact", "ещё")).ok().expect("создана");
+        assert_eq!(second.id, "ap_2");
+
+        // клиент видел другую оценку: диалог успели переоценить
+        let stale = |r: AppealReq| new_appeal(&st, &r).err().map(|e| e.code);
+        assert_eq!(stale(req(Some("ev_0"), "contact", "x")), Some("stale_evaluation"));
+        assert_eq!(stale(req(None, "nope", "x")), Some("no_criterion"));
+        assert_eq!(stale(req(None, "contact", "   ")), Some("empty_comment"));
+        assert_eq!(st.store.read::<Vec<Appeal>>("appeals.json").unwrap().len(), 2, "отказы ничего не пишут");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn resolving_against_a_replaced_evaluation_is_refused() {
+        let current = evaluation("c1", "ev_2");
+        assert!(check_not_stale(&appeal_of("c1", "ev_2", "open"), &current).is_ok());
+        assert_eq!(
+            check_not_stale(&appeal_of("c1", "ev_1", "open"), &current).err().map(|e| e.code),
+            Some("stale_evaluation")
+        );
+        // апелляции, созданные до появления поля, не блокируются
+        assert!(check_not_stale(&appeal_of("c1", "", "open"), &current).is_ok());
+    }
+
+    #[test]
+    fn evaluation_ids_are_unique_and_prefixed() {
+        let (a, b) = (new_evaluation_id(), new_evaluation_id());
+        assert!(a.starts_with("ev_") && a.len() > 6);
+        assert_ne!(a, b);
     }
 
     #[test]

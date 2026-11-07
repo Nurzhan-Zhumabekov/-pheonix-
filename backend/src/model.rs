@@ -130,6 +130,9 @@ pub struct ModelInfo {
 pub struct Evaluation {
     pub mock: bool,
     pub conversation_id: String,
+    /// Идентификатор этого сохранённого результата. Апелляция привязана к нему.
+    #[serde(default)]
+    pub evaluation_id: String,
     pub channel: String,
     pub language: String,
     pub checklist_version: u32,
@@ -160,6 +163,9 @@ pub struct Decision {
 pub struct Appeal {
     pub id: String,
     pub conversation_id: String,
+    /// Оценка, по которой подана апелляция. Пусто у апелляций, созданных до появления поля.
+    #[serde(default)]
+    pub evaluation_id: String,
     pub criterion_id: String,
     pub comment: String,
     pub fragment: Option<TurnRange>,

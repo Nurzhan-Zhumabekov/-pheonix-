@@ -18,7 +18,10 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
 BACKEND = ROOT / "backend"
-MODEL = "gpt-6-luna"
+MODEL_CONFIG = {
+    "dev": ("gpt-6-luna", "0.10", "0.50"),
+    "prod": ("gpt-6.1-terra", "1.00", "5.00"),
+}
 DEFAULT_TEAM = "Phoenix"
 
 
@@ -54,7 +57,8 @@ def wait_ready(server, base_url):
     raise RuntimeError("Бэкенд не запустился. Проверьте локальную конфигурацию проекта.")
 
 
-def run(group, team_name, concurrency, prod_url):
+def run(group, team_name, concurrency, prod_url, config_dir=BACKEND):
+    model, price_in, price_out = MODEL_CONFIG[group]
     subprocess.run(
         ["cargo", "build", "--locked", "--manifest-path", str(BACKEND / "Cargo.toml")],
         cwd=ROOT,
@@ -74,19 +78,20 @@ def run(group, team_name, concurrency, prod_url):
             PORT=str(port),
             STORAGE_DIR=run_dir,
             PROMPTS_DIR=str(prompts),
+            WEB_DIR=str(ROOT / "web"),
             LLM_PROVIDER="openai",
-            LLM_MODEL=MODEL,
+            LLM_MODEL=model,
             LLM_BASE_URL="https://api.openai.com/v1",
             LLM_REASONING_EFFORT="none",
             LLM_VOTES="3",
             LLM_CONCURRENCY="4",
-            LLM_PRICE_IN="0.10",
-            LLM_PRICE_OUT="0.50",
+            LLM_PRICE_IN=price_in,
+            LLM_PRICE_OUT=price_out,
         )
         if prod_url:
             env["CONTROL_API_URL"] = prod_url
         server = subprocess.Popen(
-            [str(binary)], cwd=BACKEND, env=env,
+            [str(binary)], cwd=config_dir, env=env,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
@@ -95,7 +100,7 @@ def run(group, team_name, concurrency, prod_url):
             cmd = [
                 sys.executable, "-B", str(ROOT / "tools" / "cqa_results.py"),
                 "--group", group, "--team-name", team_name, "--base-url", base_url,
-                "--expected-model", MODEL, "--model-mode", "external_api",
+                "--expected-model", model, "--model-mode", "external_api",
                 "--concurrency", str(concurrency), "--refresh",
             ]
             return subprocess.run(cmd, cwd=ROOT, check=False).returncode
@@ -114,10 +119,16 @@ def main():
     parser.add_argument("group", choices=("dev", "prod"))
     parser.add_argument("--team-name", default=DEFAULT_TEAM)
     parser.add_argument("--concurrency", type=int, choices=range(1, 7), default=4)
+    parser.add_argument(
+        "--config-dir", type=Path, default=BACKEND,
+        help="directory used by the backend to load local configuration",
+    )
     args = parser.parse_args()
+    if not args.config_dir.is_dir():
+        parser.error("--config-dir must be an existing directory")
     try:
         url = control_url() if args.group == "prod" else None
-        return run(args.group, args.team_name, args.concurrency, url)
+        return run(args.group, args.team_name, args.concurrency, url, args.config_dir)
     except (RuntimeError, OSError, ValueError, subprocess.CalledProcessError) as error:
         message = str(error) if isinstance(error, RuntimeError) else "Не удалось запустить бэкенд или выгрузку."
         print(message, file=sys.stderr)

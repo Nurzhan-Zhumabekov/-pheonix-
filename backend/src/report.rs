@@ -250,6 +250,7 @@ mod tests {
         Evaluation {
             mock: false,
             conversation_id: "x".into(),
+            evaluation_id: String::new(),
             channel: "agent chat".into(),
             language: "RU".into(),
             checklist_version: version,

@@ -9,7 +9,10 @@ mod store;
 
 use std::{env, sync::Arc};
 
-use tower_http::{cors::CorsLayer, services::ServeDir};
+use tower_http::{
+    cors::{Any, CorsLayer},
+    services::ServeDir,
+};
 
 #[tokio::main]
 async fn main() {
@@ -46,9 +49,15 @@ async fn main() {
         judge_opts: judge::JudgeOpts::from_env(nonempty),
     });
 
-    let app = api::router(state)
-        .fallback_service(ServeDir::new(web))
-        .layer(CorsLayer::permissive());
+    // Интерфейс и API отдаются с одного адреса, поэтому CORS не нужен и по умолчанию выключен.
+    // Нужен отдельный адрес для разработки интерфейса: CORS_ALLOW_ORIGIN=http://127.0.0.1:5173
+    let mut app = api::router(state).fallback_service(ServeDir::new(web));
+    if let Some(origin) = nonempty("CORS_ALLOW_ORIGIN") {
+        let origin: axum::http::HeaderValue =
+            origin.parse().unwrap_or_else(|_| panic!("CORS_ALLOW_ORIGIN: недопустимое значение"));
+        println!("cors: разрешён только origin {origin:?}");
+        app = app.layer(CorsLayer::new().allow_origin(origin).allow_methods(Any).allow_headers(Any));
+    }
 
     // Только localhost: в хранилище лежат реальные данные звонков.
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
