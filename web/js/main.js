@@ -74,6 +74,23 @@ NAV.forEach(([name, label]) => {
   nav.append(b);
 });
 
+// Бургер-меню (до 600px): кнопки разделов лежат в раскрывающейся панели.
+const navToggle = document.getElementById('nav-toggle');
+function setMenu(open) {
+  nav.classList.toggle('nav--open', open);
+  navToggle.setAttribute('aria-expanded', String(open));
+}
+navToggle.addEventListener('click', () => setMenu(!nav.classList.contains('nav--open')));
+document.addEventListener('click', (e) => {
+  if (!nav.contains(e.target) && !navToggle.contains(e.target)) setMenu(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') setMenu(false);
+});
+window.matchMedia('(min-width: 601px)').addEventListener('change', (e) => {
+  if (e.matches) setMenu(false);
+});
+
 // Счётчик открытых апелляций на ярлыке «Проверка».
 const badge = document.createElement('span');
 badge.className = 'nav__badge';
@@ -85,6 +102,7 @@ function setOpenCount(n) {
 }
 
 function showView(name) {
+  setMenu(false);
   Object.entries(views).forEach(([n, node]) => { node.hidden = n !== name; });
   Object.entries(navButtons).forEach(([n, b]) => {
     if (n === name) b.setAttribute('aria-current', 'page');
