@@ -1,6 +1,9 @@
 // Точка входа: собирает компоненты и связывает их между собой.
 import { api, errorText } from './api.js';
 import { createChecklistEditor } from './components/checklist-editor.js';
+import { createAudioPlayer } from './components/audio-player.js';
+import { createBulkEvaluator } from './components/bulk-evaluator.js';
+import { computeOffsets } from './call-time.js';
 import { createAppealCard } from './components/appeal-card.js';
 import { createAppealsList } from './components/appeals-list.js';
 import { createConversationHeader } from './components/conversation-header.js';
@@ -8,14 +11,43 @@ import { createConversationList } from './components/conversation-list.js';
 import { createResultCard } from './components/result-card.js';
 import { createTranscript } from './components/transcript.js';
 
-const transcript = createTranscript();
+const player = createAudioPlayer();
+const transcript = createTranscript({ onSeek: (sec) => player.seek(sec) });
 const resultCard = createResultCard({
   onEvidenceClick: (i) => transcript.scrollToTurn(i),
   onReevaluate: () => currentId && evaluate(currentId),
   onAppeal: submitAppeal,
+  audioOffsetFor: evidenceOffset,
+  onSeekEvidence: (e) => {
+    const sec = evidenceOffset(e);
+    if (sec !== null) player.seek(sec);
+    transcript.scrollToTurn(e.turn_index);
+  },
 });
 const header = createConversationHeader({ onEvaluate: (id) => evaluate(id) });
 const list = createConversationList({ api, onSelect: (id) => openConversation(id) });
+const bulk = createBulkEvaluator({
+  api,
+  getTargets: () => list.getTargets(),
+  onItemDone: (id, ev) => {
+    list.markEvaluated(id);
+    if (id === currentId) {
+      header.setHasEvaluation(true);
+      showEvaluation(ev);
+    }
+  },
+});
+list.head.append(bulk.el);
+
+// Для звонка с записью: смещение реплики в аудио (ММ:СС считается в call-time.js).
+let currentConv = null;
+let currentOffsets = null;
+function evidenceOffset(e) {
+  if (!currentConv || currentConv.channel !== 'voice call' || !currentConv.audio_url) return null;
+  if (typeof e.audio_offset_sec === 'number') return e.audio_offset_sec;
+  const o = currentOffsets && currentOffsets[e.turn_index];
+  return typeof o === 'number' ? o : null;
+}
 
 const editor = createChecklistEditor({ api, onSaved: () => refreshResult() });
 const appealsList = createAppealsList({ onSelect: (id) => selectAppeal(id) });
@@ -65,7 +97,7 @@ function showView(name) {
 
 document.getElementById('view-checklist').append(editor.el);
 document.getElementById('list-pane').append(list.el);
-document.getElementById('center-pane').append(header.el, transcript.el);
+document.getElementById('center-pane').append(header.el, player.el, transcript.el);
 document.getElementById('result-pane').append(resultCard.el);
 document.getElementById('appeals-list-pane').append(appealsList.el);
 document.getElementById('appeal-card-pane').append(appealCard.el);
@@ -110,6 +142,9 @@ async function openConversation(id) {
   const token = ++openToken;
   currentId = id;
   lastEvaluation = null;
+  currentConv = null;
+  currentOffsets = null;
+  player.hide();
   header.hide();
   transcript.setLoading();
   resultCard.setPlaceholder('Здесь появится результат оценки.');
@@ -123,6 +158,9 @@ async function openConversation(id) {
     return;
   }
   if (token !== openToken) return;
+  currentConv = conv;
+  currentOffsets = conv.channel === 'voice call' ? computeOffsets(conv.transcript || []) : null;
+  player.show(conv);
   transcript.show(conv);
   if (pendingScroll !== null && pendingScroll.id === id) {
     const turn = pendingScroll.turn;

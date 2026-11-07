@@ -4,6 +4,8 @@
 import { errorText } from '../api.js';
 import { clear, el, fmtNumber, stateBox, tag } from '../dom.js';
 import { answerText, answerWithPoints, fmtDateTime, totalText } from '../format.js';
+import { computeOffsets } from '../call-time.js';
+import { createAudioPlayer } from './audio-player.js';
 import { createTurnNode } from './turn.js';
 
 function answerOptions(def) {
@@ -37,16 +39,26 @@ export function createAppealCard({ onOpenDialog, onResolve }) {
     }
     const from = Math.max(0, Math.min(frag.from_turn, turns.length - 1));
     const to = Math.max(from, Math.min(frag.to_turn, turns.length - 1));
+    // Звонок: смещения реплик и мини-плеер записи.
+    const isCall = conv.channel === 'voice call';
+    const offsets = isCall ? computeOffsets(turns) : null;
+    const mini = isCall ? createAudioPlayer() : null;
+    if (mini) mini.show(conv);
+    const seek = isCall && conv.audio_url ? (sec) => mini.seek(sec) : null;
     const list = el('div', { class: 'tr' });
     for (let i = Math.max(0, from - 1); i <= Math.min(turns.length - 1, to + 1); i += 1) {
       const disputed = i >= from && i <= to;
-      list.append(createTurnNode(turns[i], i, { extraClass: disputed ? 'turn--disputed' : 'turn--context' }));
+      list.append(createTurnNode(turns[i], i, {
+        extraClass: disputed ? 'turn--disputed' : 'turn--context',
+        call: isCall ? { offsetSec: offsets[i], onSeek: seek } : null,
+      }));
     }
     return el(
       'div',
       { class: 'ac__block' },
       el('h4', { text: `Фрагмент диалога: реплики #${from}–#${to}` }),
       el('div', { class: 'ac__hint', text: 'Спорные реплики выделены, по одной реплике контекста до и после.' }),
+      mini ? mini.el : null,
       list,
     );
   }

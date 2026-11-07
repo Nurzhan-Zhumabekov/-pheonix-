@@ -1,10 +1,11 @@
 // Компонент: транскрипт диалога.
-// createTranscript() -> { el, show(conversation), setLoading(), setError(text), setPlaceholder(text), scrollToTurn(i) }
+// createTranscript({ onSeek(sec) }) -> { el, show(conversation), setLoading(), setError(text), setPlaceholder(text), scrollToTurn(i) }
 // У каждой реплики есть якорь data-turn = turn_index (с нуля, как в массиве transcript).
 import { clear, el, stateBox } from '../dom.js';
+import { computeOffsets } from '../call-time.js';
 import { createTurnNode } from './turn.js';
 
-export function createTranscript() {
+export function createTranscript({ onSeek } = {}) {
   const root = el('div', { class: 'pane__body' });
 
   function show(conversation) {
@@ -14,7 +15,14 @@ export function createTranscript() {
       root.append(stateBox('empty', 'В диалоге нет реплик.'));
       return;
     }
-    root.append(el('div', { class: 'tr' }, turns.map((t, i) => createTurnNode(t, i, { anchor: true }))));
+    // Звонок: метка времени мелко как пришла + смещение ММ:СС (кликабельно, если есть запись).
+    const isCall = conversation.channel === 'voice call';
+    const offsets = isCall ? computeOffsets(turns) : null;
+    const seek = isCall && conversation.audio_url && onSeek ? onSeek : null;
+    root.append(
+      el('div', { class: 'tr' }, turns.map((t, i) =>
+        createTurnNode(t, i, { anchor: true, call: isCall ? { offsetSec: offsets[i], onSeek: seek } : null }))),
+    );
     root.scrollTop = 0;
   }
 

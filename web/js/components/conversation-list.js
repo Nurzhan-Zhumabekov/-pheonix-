@@ -1,5 +1,5 @@
 // Компонент: левая колонка со списком диалогов.
-// createConversationList({ api, onSelect }) -> { el, refresh, markEvaluated, select(id) }
+// createConversationList({ api, onSelect }) -> { el, head, refresh, markEvaluated, select(id), getTargets() }
 import { clear, channelLabel, el, stateBox, tag } from '../dom.js';
 import { errorText } from '../api.js';
 
@@ -56,6 +56,8 @@ export function createConversationList({ api, onSelect }) {
     ),
     body,
   );
+
+  const head = root.firstElementChild;
 
   function visibleItems() {
     return state.items.filter(
@@ -137,5 +139,11 @@ export function createConversationList({ api, onSelect }) {
     }
   }
 
-  return { el: root, refresh, markEvaluated, select };
+  // Цели массовой оценки: группа и диалоги с учётом активных фильтров.
+  const getTargets = () => ({
+    group: state.group,
+    items: visibleItems().map((c) => ({ id: c.conversation_id, evaluated: !!c.has_evaluation })),
+  });
+
+  return { el: root, head, refresh, markEvaluated, select, getTargets };
 }

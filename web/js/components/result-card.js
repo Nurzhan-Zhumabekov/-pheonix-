@@ -1,5 +1,5 @@
 // Компонент: карточка результата оценки.
-// createResultCard({ onEvidenceClick, onReevaluate, onAppeal(criterionId, comment) }) -> { el, show(evaluation, checklist, appeals), setLoading(), setError(text), setPlaceholder(text) }
+// createResultCard({ onEvidenceClick, onReevaluate, onAppeal(criterionId, comment), audioOffsetFor(evidence) -> сек|null, onSeekEvidence(evidence) }) -> { el, show(evaluation, checklist, appeals), setLoading(), setError(text), setPlaceholder(text) }
 // Названия критериев и секций берутся из чек-листа (GET /api/checklist) по id.
 import { clear, el, fmtNumber, stateBox, tag } from '../dom.js';
 import { answerWithPoints } from '../format.js';
@@ -19,14 +19,15 @@ function answerView(answer, def) {
   return { label: fmtNumber(Number(answer)), cls: 'pill--num' };
 }
 
-export function createResultCard({ onEvidenceClick, onReevaluate, onAppeal }) {
+export function createResultCard({ onEvidenceClick, onReevaluate, onAppeal, audioOffsetFor, onSeekEvidence }) {
   const root = el('div', { class: 'pane__body' });
 
   function evidenceNode(ev) {
     const expected = ev.role === 'expected_location';
+    const canSeek = typeof audioOffsetFor === 'function' && audioOffsetFor(ev) !== null;
     return el(
       'li',
-      {},
+      { class: 'ev__item' },
       el(
         'button',
         {
@@ -45,6 +46,15 @@ export function createResultCard({ onEvidenceClick, onReevaluate, onAppeal }) {
         ),
         el('div', { class: 'ev__quote', text: ev.quote ? `«${ev.quote}»` : '' }),
       ),
+      canSeek
+        ? el('button', {
+            type: 'button',
+            class: 'btn btn--ghost btn--small ev__seek',
+            text: '▶ к записи',
+            title: 'Перемотать запись и показать реплику',
+            onclick: () => onSeekEvidence(ev),
+          })
+        : null,
     );
   }
 
