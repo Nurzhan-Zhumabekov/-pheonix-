@@ -1,5 +1,5 @@
 // Компонент: левая колонка со списком диалогов.
-// createConversationList({ api, onSelect }) -> { el, refresh, markEvaluated }
+// createConversationList({ api, onSelect }) -> { el, refresh, markEvaluated, select(id) }
 import { clear, channelLabel, el, stateBox, tag } from '../dom.js';
 import { errorText } from '../api.js';
 
@@ -137,5 +137,5 @@ export function createConversationList({ api, onSelect }) {
     }
   }
 
-  return { el: root, refresh, markEvaluated };
+  return { el: root, refresh, markEvaluated, select };
 }

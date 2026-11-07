@@ -2,13 +2,7 @@
 // createTranscript() -> { el, show(conversation), setLoading(), setError(text), setPlaceholder(text), scrollToTurn(i) }
 // У каждой реплики есть якорь data-turn = turn_index (с нуля, как в массиве transcript).
 import { clear, el, stateBox } from '../dom.js';
-
-const ROLES = {
-  client: 'Клиент',
-  operator: 'Оператор',
-  bot: 'Бот',
-  system: 'Система',
-};
+import { createTurnNode } from './turn.js';
 
 export function createTranscript() {
   const root = el('div', { class: 'pane__body' });
@@ -20,26 +14,7 @@ export function createTranscript() {
       root.append(stateBox('empty', 'В диалоге нет реплик.'));
       return;
     }
-    const list = el('div', { class: 'tr' });
-    turns.forEach((t, i) => {
-      const role = ROLES[t.speaker] ? t.speaker : 'other';
-      list.append(
-        el(
-          'div',
-          { class: `turn turn--${role}`, id: `turn-${i}`, dataset: { turn: i } },
-          el(
-            'div',
-            { class: 'turn__head' },
-            el('span', { class: 'turn__role', text: ROLES[t.speaker] || t.speaker || '—' }),
-            // метка времени ровно как в данных
-            el('span', { class: 'turn__time', text: t.timestamp ?? '' }),
-            el('span', { class: 'turn__idx', text: `#${i}` }),
-          ),
-          el('div', { class: 'turn__text', text: t.text ?? '' }),
-        ),
-      );
-    });
-    root.append(list);
+    root.append(el('div', { class: 'tr' }, turns.map((t, i) => createTurnNode(t, i, { anchor: true }))));
     root.scrollTop = 0;
   }
 

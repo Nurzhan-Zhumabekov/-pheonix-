@@ -1,7 +1,9 @@
 // Компонент: карточка результата оценки.
-// createResultCard({ onEvidenceClick, onReevaluate }) -> { el, show(evaluation, checklist), setLoading(), setError(text), setPlaceholder(text) }
+// createResultCard({ onEvidenceClick, onReevaluate, onAppeal(criterionId, comment) }) -> { el, show(evaluation, checklist, appeals), setLoading(), setError(text), setPlaceholder(text) }
 // Названия критериев и секций берутся из чек-листа (GET /api/checklist) по id.
 import { clear, el, fmtNumber, stateBox, tag } from '../dom.js';
+import { answerWithPoints } from '../format.js';
+import { createAppealForm } from './appeal-form.js';
 
 const ROLE_LABELS = { supports: 'Подтверждает', expected_location: 'Здесь ожидалось' };
 const SPEAKERS = { client: 'Клиент', operator: 'Оператор', bot: 'Бот', system: 'Система' };
@@ -17,7 +19,7 @@ function answerView(answer, def) {
   return { label: fmtNumber(Number(answer)), cls: 'pill--num' };
 }
 
-export function createResultCard({ onEvidenceClick, onReevaluate }) {
+export function createResultCard({ onEvidenceClick, onReevaluate, onAppeal }) {
   const root = el('div', { class: 'pane__body' });
 
   function evidenceNode(ev) {
@@ -46,8 +48,30 @@ export function createResultCard({ onEvidenceClick, onReevaluate }) {
     );
   }
 
-  function criterionNode(c, def) {
+  // appeals: апелляции именно по этому критерию этого диалога
+  function criterionNode(c, def, appeals = []) {
     const view = answerView(c.answer, def);
+    const name = (def && def.name) || c.criterion_id;
+    const open = appeals.find((a) => a.status === 'open');
+    const resolved = appeals.filter((a) => a.status === 'resolved').pop();
+    const formSlot = el('div', { class: 'af-slot' });
+    const disputeBtn = el('button', {
+      type: 'button',
+      class: 'btn btn--ghost btn--small',
+      text: 'Оспорить',
+      disabled: !!open,
+      title: open ? 'По этому критерию уже есть открытая апелляция' : 'Подать апелляцию',
+      onclick: () => {
+        if (formSlot.firstChild) { clear(formSlot); return; }
+        const form = createAppealForm({
+          criterionName: name, answer: c.answer, points: c.points, weight: c.weight,
+          onSubmit: (comment) => onAppeal(c.criterion_id, comment),
+          onCancel: () => clear(formSlot),
+        });
+        formSlot.append(form.el);
+        form.focus();
+      },
+    });
     const range = c.checked_range;
     const hasPoints = typeof c.points === 'number';
     return el(
@@ -56,14 +80,23 @@ export function createResultCard({ onEvidenceClick, onReevaluate }) {
       el(
         'div',
         { class: 'crit__head' },
-        el('div', { class: 'crit__name', text: (def && def.name) || c.criterion_id }),
+        el('div', { class: 'crit__name', text: name }),
         el('span', { class: `pill ${view.cls}`, text: view.label }),
         el('span', {
           class: 'crit__points',
           text: hasPoints ? `${fmtNumber(c.points)} / ${fmtNumber(c.weight)}` : `— / ${fmtNumber(c.weight)}`,
           title: 'Баллы / вес',
         }),
+        disputeBtn,
       ),
+      open ? el('div', { class: 'dispute dispute--open', text: 'Оспорено, ждёт решения' }) : null,
+      resolved
+        ? el('div', {
+            class: 'dispute dispute--done',
+            text: `Апелляция решена: было ${answerWithPoints(resolved.original.answer, resolved.original.points)}, стало ${answerWithPoints(resolved.final.answer, resolved.final.points)}`,
+          })
+        : null,
+      formSlot,
       c.explanation ? el('p', { class: 'crit__text', text: c.explanation }) : null,
       c.na_reason
         ? el('div', { class: 'crit__note' }, el('b', { text: 'Причина N/A: ' }), c.na_reason)
@@ -143,7 +176,7 @@ export function createResultCard({ onEvidenceClick, onReevaluate }) {
     });
   }
 
-  function show(ev, checklist) {
+  function show(ev, checklist, appeals = []) {
     const defs = new Map(((checklist && checklist.criteria) || []).map((c) => [c.id, c]));
     const sectionNames = new Map(((checklist && checklist.sections) || []).map((s) => [s.id, s.name]));
     const model = ev.model || {};
@@ -163,7 +196,8 @@ export function createResultCard({ onEvidenceClick, onReevaluate }) {
         staleHint(ev, checklist),
         totalBlock(ev, sectionNames),
         grossBlock(ev.gross_error),
-        (ev.criteria || []).map((c) => criterionNode(c, defs.get(c.criterion_id))),
+        (ev.criteria || []).map((c) =>
+          criterionNode(c, defs.get(c.criterion_id), appeals.filter((a) => a.criterion_id === c.criterion_id))),
       ),
     );
     root.scrollTop = 0;

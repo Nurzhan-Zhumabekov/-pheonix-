@@ -53,6 +53,20 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(checklist),
     }),
+  listAppeals: (conversationId) =>
+    request(conversationId ? `/api/appeals?conversation_id=${enc(conversationId)}` : '/api/appeals'),
+  createAppeal: (body) =>
+    request('/api/appeals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  resolveAppeal: (id, body) =>
+    request(`/api/appeals/${enc(id)}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
   getEvaluation: (id) => request(`/api/evaluations/${enc(id)}`),
   evaluate: (id) =>
     request('/api/evaluate', {
