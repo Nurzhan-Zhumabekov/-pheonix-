@@ -1,4 +1,5 @@
 mod api;
+mod audio;
 mod judge;
 mod llm;
 mod loader;
@@ -51,7 +52,7 @@ async fn main() {
 
     // Интерфейс и API отдаются с одного адреса, поэтому CORS не нужен и по умолчанию выключен.
     // Нужен отдельный адрес для разработки интерфейса: CORS_ALLOW_ORIGIN=http://127.0.0.1:5173
-    let mut app = api::router(state).fallback_service(ServeDir::new(web));
+    let mut app = api::router(state.clone()).merge(audio::router(state)).fallback_service(ServeDir::new(web));
     if let Some(origin) = nonempty("CORS_ALLOW_ORIGIN") {
         let origin: axum::http::HeaderValue =
             origin.parse().unwrap_or_else(|_| panic!("CORS_ALLOW_ORIGIN: недопустимое значение"));

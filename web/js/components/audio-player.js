@@ -1,6 +1,8 @@
 // Компонент: плеер записи звонка.
 // createAudioPlayer() -> { el, show(conversation), hide(), seek(sec) }
-// Адрес записи попадает только в атрибут src: не логируется и не выводится в страницу.
+// audio_url организаторов ведёт на HTML-страницу плеера, а не на файл, поэтому в src идёт адрес нашего сервера:
+// он достаёт файл со страницы и перенаправляет на него. Внешний адрес не логируется и не выводится в страницу.
+import { API_BASE } from '../config.js';
 import { clear, el } from '../dom.js';
 
 export function createAudioPlayer() {
@@ -32,7 +34,7 @@ export function createAudioPlayer() {
       node.hidden = true;
       status.hidden = false;
     });
-    node.setAttribute('src', conversation.audio_url);
+    node.setAttribute('src', `${API_BASE}/api/conversations/${encodeURIComponent(conversation.conversation_id)}/audio`);
     audio = node;
     root.append(node, status);
   }
