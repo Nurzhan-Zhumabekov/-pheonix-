@@ -9,12 +9,14 @@
 <body>
   <header class="topbar">
     <div class="topbar__title">CQA <span>оценка качества диалогов</span></div>
+    <nav id="nav" class="nav" aria-label="Разделы"></nav>
   </header>
-  <main class="layout">
+  <main id="view-dialogs" class="layout">
     <aside id="list-pane" class="pane" aria-label="Список диалогов"></aside>
     <section id="center-pane" class="pane" aria-label="Диалог"></section>
     <section id="result-pane" class="pane" aria-label="Результат оценки"></section>
   </main>
+  <main id="view-checklist" class="page" hidden aria-label="Редактор чек-листа"></main>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

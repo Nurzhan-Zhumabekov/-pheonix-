@@ -1,5 +1,5 @@
 // Компонент: карточка результата оценки.
-// createResultCard({ onEvidenceClick }) -> { el, show(evaluation, checklist), setLoading(), setError(text), setPlaceholder(text) }
+// createResultCard({ onEvidenceClick, onReevaluate }) -> { el, show(evaluation, checklist), setLoading(), setError(text), setPlaceholder(text) }
 // Названия критериев и секций берутся из чек-листа (GET /api/checklist) по id.
 import { clear, el, fmtNumber, stateBox, tag } from '../dom.js';
 
@@ -17,7 +17,7 @@ function answerView(answer, def) {
   return { label: fmtNumber(Number(answer)), cls: 'pill--num' };
 }
 
-export function createResultCard({ onEvidenceClick }) {
+export function createResultCard({ onEvidenceClick, onReevaluate }) {
   const root = el('div', { class: 'pane__body' });
 
   function evidenceNode(ev) {
@@ -130,6 +130,19 @@ export function createResultCard({ onEvidenceClick }) {
     );
   }
 
+  // Оценка получена по более старой версии чек-листа, чем текущая.
+  function staleHint(ev, checklist) {
+    const current = checklist && checklist.version;
+    if (typeof current !== 'number' || typeof ev.checklist_version !== 'number' || ev.checklist_version >= current) {
+      return null;
+    }
+    return el('div', {
+      class: 'stale',
+      role: 'alert',
+      text: `Результат получен по чек-листу версии ${ev.checklist_version}, текущая версия ${current}, оцените заново`,
+    });
+  }
+
   function show(ev, checklist) {
     const defs = new Map(((checklist && checklist.criteria) || []).map((c) => [c.id, c]));
     const sectionNames = new Map(((checklist && checklist.sections) || []).map((s) => [s.id, s.name]));
@@ -145,7 +158,9 @@ export function createResultCard({ onEvidenceClick }) {
           ev.mock ? tag('mock', 'tag--mock') : null,
           ev.checklist_version != null ? tag(`чек-лист v${ev.checklist_version}`) : null,
           model.name ? tag(`модель: ${model.name}`) : null,
+          el('button', { type: 'button', class: 'btn btn--ghost btn--small', text: 'Оценить заново', onclick: () => onReevaluate() }),
         ),
+        staleHint(ev, checklist),
         totalBlock(ev, sectionNames),
         grossBlock(ev.gross_error),
         (ev.criteria || []).map((c) => criterionNode(c, defs.get(c.criterion_id))),

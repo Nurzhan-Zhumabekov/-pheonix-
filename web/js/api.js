@@ -47,6 +47,12 @@ export const api = {
   listConversations: (group) => request(`/api/conversations?group=${enc(group)}`),
   getConversation: (id) => request(`/api/conversations/${enc(id)}`),
   getChecklist: () => request('/api/checklist'),
+  saveChecklist: (checklist) =>
+    request('/api/checklist', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(checklist),
+    }),
   getEvaluation: (id) => request(`/api/evaluations/${enc(id)}`),
   evaluate: (id) =>
     request('/api/evaluate', {
