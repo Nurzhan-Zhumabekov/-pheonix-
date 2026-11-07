@@ -224,7 +224,14 @@ async function evaluate(id) {
 
 // ---------- подача апелляции ----------
 async function submitAppeal(criterionId, comment) {
-  await api.createAppeal({ conversation_id: currentId, criterion_id: criterionId, comment });
+  // evaluation_id привязывает апелляцию к показанной оценке: после повторной оценки сервер вернёт 409 stale_evaluation
+  const evaluationId = lastEvaluation && lastEvaluation.evaluation_id;
+  await api.createAppeal({
+    conversation_id: currentId,
+    criterion_id: criterionId,
+    comment,
+    ...(evaluationId ? { evaluation_id: evaluationId } : {}),
+  });
   // форма закрывается перерисовкой карточки: апелляции диалога загружаются заново
   await refreshResult();
   refreshAppealsAll().catch(() => {});
@@ -273,7 +280,7 @@ async function selectAppeal(id) {
         conv = null; // диалога нет: карточка покажет апелляцию без фрагмента
       }
     }
-    const checklist = await loadChecklistSafe();
+    const checklist = await api.getAppealChecklist(appeal);
     if (token !== reviewToken) return;
     appealCard.show(appeal, conv, checklist);
   } catch (e) {
