@@ -69,6 +69,20 @@ export const api = {
       body: JSON.stringify(body),
     }),
   getEvaluation: (id) => request(`/api/evaluations/${enc(id)}`),
+  async getAppealChecklist(appeal) {
+    try {
+      const evaluation = await api.getEvaluation(appeal.conversation_id);
+      if (appeal.evaluation_id && evaluation.evaluation_id !== appeal.evaluation_id) return null;
+
+      const version = evaluation.checklist_version;
+      if (!Number.isInteger(version) || version < 1) return null;
+
+      const checklist = await request(`/api/checklists/${version}`);
+      return checklist.version === version && Array.isArray(checklist.criteria) ? checklist : null;
+    } catch {
+      return null;
+    }
+  },
   evaluate: (id) =>
     request('/api/evaluate', {
       method: 'POST',

@@ -64,7 +64,10 @@ export function createAppealCard({ onOpenDialog, onResolve }) {
   }
 
   // ---------- форма решения ----------
-  function decisionForm(appeal, def) {
+  function decisionForm(appeal, def, hasChecklist) {
+    if (!hasChecklist) {
+      return stateBox('error', 'Не удалось загрузить чек-лист исходной оценки. Откройте апелляцию повторно.');
+    }
     const opts = answerOptions(def);
     const msg = el('div', { class: 'af__msg', role: 'alert' });
     const reason = el('textarea', {
@@ -93,7 +96,7 @@ export function createAppealCard({ onOpenDialog, onResolve }) {
         radio('confirm', 'Подтвердить оценку'),
         radio('change', 'Изменить оценку', !def),
       ),
-      def ? null : el('div', { class: 'ac__hint', text: 'Критерия нет в текущем чек-листе: изменить оценку нельзя. Откройте диалог и оцените его заново.' }),
+      def ? null : el('div', { class: 'ac__hint', text: 'Критерия нет в чек-листе исходной оценки. Изменение оценки недоступно.' }),
       answerField,
       el('label', { class: 'fld' }, el('span', { text: 'Причина решения' }), reason),
       msg,
@@ -183,7 +186,7 @@ export function createAppealCard({ onOpenDialog, onResolve }) {
         ),
         el('div', { class: 'ac__block' }, el('h4', { text: 'Комментарий' }), el('blockquote', { class: 'ac__comment', text: appeal.comment })),
         fragmentBlock(appeal, conv),
-        isOpen ? decisionForm(appeal, def) : resultBlock(appeal),
+        isOpen ? decisionForm(appeal, def, Boolean(checklist)) : resultBlock(appeal),
       ),
     );
     root.scrollTop = 0;
