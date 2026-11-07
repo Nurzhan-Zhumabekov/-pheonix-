@@ -125,10 +125,17 @@ def evaluate(body: Any = Body(...)):
     return result
 
 
-@router.get("/evaluations/{conversation_id}")
-def get_evaluation(conversation_id: str):
+def read_evaluation(conversation_id: str) -> dict | None:
     path = evaluation_path(conversation_id)
     if not path.exists():
-        raise ApiError(404, "evaluation_not_found", "Для этого диалога оценки ещё нет")
+        return None
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+@router.get("/evaluations/{conversation_id}")
+def get_evaluation(conversation_id: str):
+    ev = read_evaluation(conversation_id)
+    if ev is None:
+        raise ApiError(404, "evaluation_not_found", "Для этого диалога оценки ещё нет")
+    return ev
