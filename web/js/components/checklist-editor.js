@@ -141,7 +141,7 @@ export function createChecklistEditor({ api, onSaved }) {
         errors.push(`Критерий ${label}: вес должен быть числом`);
         weight = 0;
       }
-      let scale = null;
+      let scale = [];
       if (c.type === 'scale') {
         const parts = c._scaleText.split(/[;,\s]+/).filter(Boolean).map((x) => Number(x.replace(',', '.')));
         if (parts.some((x) => !Number.isFinite(x))) {
