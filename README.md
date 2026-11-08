@@ -1,4 +1,4 @@
-# CQA: Conversation Quality Analytics
+# CQA: Conversation Quality Analytics Pheonix force team
 
 Проект хакатона Data Challenge «Doomsday», кейс Freedom Broker. Сервис оценивает качество диалогов оператора с клиентом (чаты и звонки) по настраиваемому чек-листу: модель выбирает ответ по каждому критерию и цитату-доказательство, а итоговый балл считает код по формуле, а не модель.
 
