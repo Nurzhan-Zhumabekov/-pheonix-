@@ -1,0 +1,15 @@
+# В образ не должны попасть ключи, реальные данные и тяжёлые каталоги сборки
+.git
+.env
+.env.*
+storage
+data
+results
+pitch
+**/target
+**/node_modules
+e2e
+docs
+tools
+backend-py
+web-codex

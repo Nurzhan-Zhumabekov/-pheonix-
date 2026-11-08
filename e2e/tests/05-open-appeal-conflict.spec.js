@@ -16,6 +16,8 @@ test('повторная оценка при открытой апелляции
   if (!(await page.locator('#result-pane .rc').isVisible())) await evaluateOpenDialog(page);
   await expect(page.locator('#result-pane .rc')).toBeVisible();
   const evaluationBefore = await getEvaluation(request, CALL_3.conversation_id);
+  const resultCard = page.locator('#result-pane .rc');
+  const totalBefore = await resultCard.locator('.total__value').innerText();
 
   await test.step('подаём апелляцию', async () => {
     const block = crit(page, CRITERION);
@@ -36,14 +38,10 @@ test('повторная оценка при открытой апелляции
     const error = page.locator('#result-pane .state--error');
     await expect(error).toBeVisible();
     await expect(error).toHaveText(`Не удалось оценить диалог. ${SERVER_TEXT}`);
+    await expect(resultCard).toBeVisible();
+    await expect(resultCard.locator('.total__value')).toHaveText(totalBefore);
+    await expect(crit(page, CRITERION).locator('.dispute--open')).toBeVisible();
     await shot(page, testInfo, 'conflict-from-card');
-    // Наблюдение (тест его не требует и не запрещает): вместо прежней карточки остаётся только сообщение.
-    if ((await page.locator('#result-pane .rc').count()) === 0) {
-      testInfo.annotations.push({
-        type: 'ux',
-        description: 'после 409 карточка прежней оценки пропала с экрана: остался только текст ошибки (web/js/main.js, evaluate)',
-      });
-    }
     // Кнопка в шапке снова доступна: интерфейс не завис в состоянии «Оцениваем…».
     await expect(evaluateButton(page)).toBeEnabled();
     await expect(evaluateButton(page)).toHaveText('Оценить заново');
@@ -56,6 +54,7 @@ test('повторная оценка при открытой апелляции
     ]);
     expect(response.status()).toBe(409);
     await expect(page.locator('#result-pane .state--error')).toHaveText(`Не удалось оценить диалог. ${SERVER_TEXT}`);
+    await expect(resultCard.locator('.total__value')).toHaveText(totalBefore);
   });
 
   await test.step('прежняя оценка на сервере не тронута', async () => {

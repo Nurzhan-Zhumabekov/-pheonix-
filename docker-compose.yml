@@ -1,0 +1,16 @@
+# Ключи и адреса наборов берутся из .env (формат KEY=value, образец в .env.example).
+# Без .env сервер стартует в режиме заглушки: ответы помечены mock.
+services:
+  cqa:
+    build: .
+    ports:
+      # Только localhost: в хранилище лежат реальные данные звонков.
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - cqa-data:/data
+
+volumes:
+  cqa-data:

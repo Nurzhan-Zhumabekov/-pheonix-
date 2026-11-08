@@ -10,6 +10,7 @@ import { createConversationHeader } from './components/conversation-header.js';
 import { createConversationList } from './components/conversation-list.js';
 import { createResultCard } from './components/result-card.js';
 import { createTranscript } from './components/transcript.js';
+import { stateBox } from './dom.js';
 
 const player = createAudioPlayer();
 const transcript = createTranscript({ onSeek: (sec) => player.seek(sec) });
@@ -216,7 +217,14 @@ async function evaluate(id) {
     await showEvaluation(ev);
   } catch (e) {
     if (token !== openToken) return;
-    resultCard.setError(`Не удалось оценить диалог. ${errorText(e)}`);
+    const text = `Не удалось оценить диалог. ${errorText(e)}`;
+    if (lastEvaluation && lastEvaluation.conversation_id === id) {
+      // прежняя оценка остаётся на экране, ошибка показывается над ней (например 409 при открытой апелляции)
+      await showEvaluation(lastEvaluation);
+      if (token === openToken) resultCard.el.prepend(stateBox('error', text));
+    } else {
+      resultCard.setError(text);
+    }
   } finally {
     if (token === openToken) header.setBusy(false);
   }

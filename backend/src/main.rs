@@ -60,10 +60,12 @@ async fn main() {
         app = app.layer(CorsLayer::new().allow_origin(origin).allow_methods(Any).allow_headers(Any));
     }
 
-    // Только localhost: в хранилище лежат реальные данные звонков.
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
+    // По умолчанию только localhost: в хранилище лежат реальные данные звонков.
+    // В контейнере нужен BIND_ADDR=0.0.0.0, наружу порт публикуется на 127.0.0.1 (docker-compose.yml).
+    let bind = nonempty("BIND_ADDR").unwrap_or_else(|| "127.0.0.1".into());
+    let listener = tokio::net::TcpListener::bind((bind.as_str(), port))
         .await
         .unwrap_or_else(|e| panic!("не удалось занять порт {port}: {e}"));
-    println!("http://127.0.0.1:{port}");
+    println!("http://{bind}:{port}");
     axum::serve(listener, app).await.expect("ошибка сервера");
 }
